@@ -11,6 +11,8 @@ public interface FoodMenuDAO {
 	
 	public List<Category> getAllCategories();
 	
+	public Category getCategory( int categoryId);
+	
 	public void addMenuItem( MenuItem item );
 	
 	public void deleteMenuItem( int itemId );
@@ -19,5 +21,11 @@ public interface FoodMenuDAO {
 	
 	public List<MenuItem> getAllMenuItems();
 	
-	public List<MenuItem> getCetegoryItems( int categoryId );
+	public List<MenuItem> getItemsForCategory( int categoryId );
+	
+	public List<String> getItemContents( int itemId );
+	
+	public void addItemContents( int itemId, List<String> itemContents );
+	
+	public void updateItemContents( int itemId, List<String> itemContents );
 }

@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import com.cafeteria.model.Category;
@@ -70,13 +71,31 @@ public class FoodMenuDAOImplementation implements FoodMenuDAO{
 	}
 
 	@Override
+	public Category getCategory( int categoryId ){
+		Category category = new Category();
+		try {
+			String query 				   = "select * from category where category_id=?";
+			PreparedStatement preparedStmt = dBConnection.prepareStatement( query );
+			preparedStmt.setInt( 1, categoryId );
+			ResultSet categorySet 		   = preparedStmt.executeQuery();
+			category.setCategoryName( categorySet.getString( "name" ));
+			category.setCategoryId( categorySet.getInt( "id" ));
+			preparedStmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return category;
+	}
+	
+	@Override
 	public void addMenuItem(MenuItem item) {
 		try {
-			String query 				   = "insert into item ( item_name, quantity, unit_price ) values (?,?,?)";
+			String query 				   = "insert into item ( category_id, item_name, quantity, unit_price ) values (?,?,?,?)";
 			PreparedStatement preparedStmt = dBConnection.prepareStatement( query );
-			preparedStmt.setString( 1, item.getItemName());
-			preparedStmt.setInt( 2, item.getQuantity());
-			preparedStmt.setDouble( 3, item.getUnitPrice());
+			preparedStmt.setInt( 1, item.getCategory().getCategoryId());
+			preparedStmt.setString( 2, item.getItemName());
+			preparedStmt.setInt( 3, item.getQuantity());
+			preparedStmt.setDouble( 4, item.getUnitPrice());
 			preparedStmt.executeUpdate();
 			preparedStmt.close();
 		} catch (SQLException e) {
@@ -100,11 +119,12 @@ public class FoodMenuDAOImplementation implements FoodMenuDAO{
 	@Override
 	public void updateMenuItem(MenuItem item) {
 		try {
-			String query 				   = "update item set item_name=?, quantity=?, unit_price=? where id=?";
+			String query 				   = "update item set category_id=?, item_name=?, quantity=?, unit_price=? where id=?";
 			PreparedStatement preparedStmt = dBConnection.prepareStatement( query );
-			preparedStmt.setString( 1, item.getItemName());
-			preparedStmt.setInt( 2, item.getQuantity());
-			preparedStmt.setDouble( 3, item.getUnitPrice());
+			preparedStmt.setInt( 1, item.getCategory().getCategoryId());
+			preparedStmt.setString( 2, item.getItemName());
+			preparedStmt.setInt( 3, item.getQuantity());
+			preparedStmt.setDouble( 4, item.getUnitPrice());
 			preparedStmt.executeUpdate();
 			preparedStmt.close();
 		} catch (SQLException e) {
@@ -116,18 +136,10 @@ public class FoodMenuDAOImplementation implements FoodMenuDAO{
 	public List<MenuItem> getAllMenuItems() {
 		List<MenuItem> allMenuItems = new ArrayList<MenuItem>();
 		try {
-			String query 			 = "select * from item";
-			Statement stmt 			 = dBConnection.createStatement();
-			ResultSet itemsSet  	 = stmt.executeQuery( query );
-			
-			while( itemsSet.next()) {
-				MenuItem item = new MenuItem();
-				item.setItemName( itemsSet.getString( "item_name" ));
-				item.setQuantity( itemsSet.getInt( "quantity" ));
-				item.setUnitPrice( itemsSet.getDouble( "unit_price" ));
-				allMenuItems.add(item);
-			}
-			
+			String query  		= "select * from item";
+			Statement stmt 		= dBConnection.createStatement();
+			ResultSet itemsSet  = stmt.executeQuery( query );
+			allMenuItems 		= translateToMenuItems( itemsSet );
 			itemsSet.close();
 			stmt.close();
 		} catch (SQLException e) {
@@ -137,41 +149,106 @@ public class FoodMenuDAOImplementation implements FoodMenuDAO{
 	}
 
 	@Override
-	public List<MenuItem> getCetegoryItems(int categoryId) {
+	public List<MenuItem> getItemsForCategory(int categoryId) {
 		List<MenuItem> allMenuItems = new ArrayList<MenuItem>();
-		List<Integer> itemIds  = new ArrayList<Integer>();
 		try {
-			String itemIdQuery = "select item_id from item_category_mapping where category_id=?";
-			PreparedStatement prepareStmt = dBConnection.prepareStatement( itemIdQuery );
-			prepareStmt.setInt( 1, categoryId );
-			ResultSet itemIdSet = prepareStmt.executeQuery();
-			while( itemIdSet.next()) {
-				itemIds.add( itemIdSet.getInt("item_id"));
-			}
-			prepareStmt.close();
-			
-			StringBuilder builder = new StringBuilder();
-
-			for( int i = 0 ; i < itemIds.size(); i++ ) {
-			    builder.append(",?");
-			}
-			String itemsQuery = "select * from item where id in " + builder.deleteCharAt(0).toString();
-			PreparedStatement itemStatement = dBConnection.prepareStatement( itemIdQuery );
-			
-			int index = 1;
-			for( int itemId : itemIds ) {
-				itemStatement.setInt( index++, itemId );
-			}
-			ResultSet itemsSet = itemStatement.executeQuery();
-			while( itemsSet.next()) {
-				MenuItem menuItem = new MenuItem();
-				menuItem.setItemName( itemsSet.getString( "item_name" ));
-				menuItem.setQuantity( itemsSet.getInt( "quantity" ));
-				menuItem.setUnitPrice( itemsSet.getDouble( "unit_price" ));
-				allMenuItems.add(menuItem);
-			}
+			String query 			= "select * from item where category_id=?";
+			PreparedStatement stmt 	= dBConnection.prepareStatement( query );
+			stmt.setInt( 1, categoryId );
+			ResultSet itemsSet  	= stmt.executeQuery( query );
+			allMenuItems 			= translateToMenuItems( itemsSet );
+			itemsSet.close();
+			stmt.close();
 		} catch (SQLException e) {
 			e.printStackTrace();
+		}
+		return allMenuItems;
+	}
+	
+	@Override
+	public List<String> getItemContents( int itemId ) {
+		List<String> itemContents = new ArrayList<String>();
+		try {
+			String query = "select * from item_details where item_id=?";
+			PreparedStatement preparedStmt = dBConnection.prepareStatement( query );
+			preparedStmt.setInt( 1, itemId );
+			ResultSet itemContentSet = preparedStmt.executeQuery();
+			String contentStr = itemContentSet.getString( "item_contents" );
+			itemContents = decatenateString( contentStr );
+			preparedStmt.close();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return itemContents;
+	}
+	
+	@Override
+	public void addItemContents( int itemId, List<String> itemContents ) {
+		try {
+			String query = "insert into item_details (item_id,item_contents) values(?,?)";
+			PreparedStatement preparedStmt = dBConnection.prepareStatement( query );
+			preparedStmt.setInt( 1, itemId );
+			preparedStmt.setString( 2, concatenateList( itemContents ));
+			preparedStmt.executeUpdate();
+			preparedStmt.close();
+		} catch ( SQLException e ) {
+			e.printStackTrace();
+		}
+	}
+	
+	@Override
+	public void updateItemContents( int itemId, List<String> itemContents ) {
+		try {
+			String query = "update item_details set item_contents=? where item_id=?";
+			PreparedStatement preparedStmt = dBConnection.prepareStatement( query );
+			preparedStmt.setString( 1, concatenateList( itemContents ));
+			preparedStmt.setInt( 2, itemId );
+			preparedStmt.executeUpdate();
+			preparedStmt.close();
+		} catch ( SQLException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	/* Helper Methods */
+
+	private List<String> decatenateString( String itemContentStr )  {
+		List<String> lstItemContents = new ArrayList<String>();
+		if( itemContentStr != null ) {
+			lstItemContents = Arrays.asList( itemContentStr.split("\\|"));
+		}
+		return lstItemContents;
+	}
+	
+	private String concatenateList ( List<String> itemContentList ) {
+		if( itemContentList != null && itemContentList.size() > 0 ) {
+			StringBuilder strItemContents = new StringBuilder();
+		    String sep = "";
+		    for(String s: itemContentList) {
+		    	strItemContents.append(sep).append(s);
+		        sep = "|";
+		    }
+		    return strItemContents.toString();
+		}
+		return null;
+	}
+	
+	private List<MenuItem> translateToMenuItems(ResultSet itemsSet) {
+		List<MenuItem> allMenuItems = new ArrayList<MenuItem>();
+		if (itemsSet != null ) {
+			try {
+				while( itemsSet.next()) {
+					MenuItem item = new MenuItem();
+					int cat_id = itemsSet.getInt( "category_id" );
+					item.setCategory( getCategory( cat_id ));
+					item.setItemName( itemsSet.getString( "item_name" ));
+					item.setQuantity( itemsSet.getInt( "quantity" ));
+					item.setUnitPrice( itemsSet.getDouble( "unit_price" ));
+					allMenuItems.add(item);
+				}
+			} catch ( SQLException e) {
+				e.printStackTrace();
+			}
 		}
 		return allMenuItems;
 	}
